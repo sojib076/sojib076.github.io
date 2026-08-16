@@ -11,6 +11,7 @@ import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import Alert from '@mui/material/Alert';
 import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 
 import ProductThumb from '@/components/ProductThumb';
 import AddToCartButton from '@/components/AddToCartButton';
@@ -21,6 +22,7 @@ import { getCartQuote } from '@/lib/cart';
 import { getDeliveryZones } from '@/lib/catalog';
 import { requireStore, resolveSettings } from '@/lib/store';
 import { formatBDT } from '@/lib/money';
+import { basketMessage, whatsappHref } from '@/lib/whatsapp';
 
 export const metadata: Metadata = {
   title: 'Your cart',
@@ -61,6 +63,7 @@ export default async function CartPage({ searchParams }: Props) {
   }
 
   const canCheckout = quote.blockers.length === 0;
+  const whatsappNumber = store.whatsapp ?? store.phone ?? null;
 
   // Carry the area and delivery/pickup choice through, so checkout prices the
   // same order the customer is looking at.
@@ -182,6 +185,41 @@ export default async function CartPage({ searchParams }: Props) {
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                   {quote.blockers[0]}
                 </Typography>
+              ) : null}
+
+              {whatsappNumber && quote.lines.length > 0 ? (
+                <>
+                  <Divider sx={{ my: 2 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      or
+                    </Typography>
+                  </Divider>
+                  <Button
+                    component="a"
+                    href={whatsappHref(
+                      whatsappNumber,
+                      basketMessage({
+                        storeName: store.name,
+                        quote,
+                        fulfillmentType,
+                        zoneName: zones.find((zone) => zone.id === zoneId)?.name ?? null,
+                        siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
+                      }),
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    variant="outlined"
+                    fullWidth
+                    startIcon={<WhatsAppIcon />}
+                    sx={{ borderColor: '#25D366', color: '#128C7E' }}
+                  >
+                    Send this order on WhatsApp
+                  </Button>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    Your whole basket and total go to the shop as a message — useful if you would
+                    rather confirm the details by chat.
+                  </Typography>
+                </>
               ) : null}
             </CardContent>
           </Card>

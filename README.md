@@ -51,13 +51,19 @@ account; sign in at `/admin`.
 | `npm run db:seed` | Seed/refresh the catalogue (safe to re-run) |
 | `npm run db:indexes` | Apply all MongoDB indexes |
 | `npm run check:pricing` | Runs the pricing-rule checks (minimum order, zone fees, free-delivery threshold, discounts) |
+| `npx tsx scripts/generate-icons.ts` | Redraws the PWA icons from the brand colours |
 
 ## First things to do after seeding
 
-The seed deliberately leaves the shop's **phone number, address and map link
-empty** — publishing a guessed phone number for a real shop is worse than
-publishing nothing, and the same details feed the local-business structured
-data. Fill them in at **Admin → Settings → Store details**.
+The shop's phone and WhatsApp number (`01781736024`) are seeded. The
+**address and map link are deliberately left empty** — publishing a guessed
+location for a real shop is worse than publishing nothing, and the same details
+feed the local-business structured data. Fill them in at
+**Admin → Settings → Store details**.
+
+The admin dashboard opens with a **setup checklist** that flags anything still
+missing — no delivery areas, no products, no order alerts, no SMS gateway — so
+the owner finds out from the dashboard rather than from a lost order.
 
 Seeded prices are realistic starting points, not quotes. Correct them in
 **Admin → Products**; inline price editing and an in-stock toggle are on the
@@ -140,14 +146,43 @@ history) and one-tap **Order again**. Reordering never lies: unavailable items
 are reported by name instead of silently dropped, and price changes since the
 original order are surfaced.
 
+### WhatsApp is a real ordering channel
+
+The shop already runs on WhatsApp (`01781736024`), so the site treats it as a
+way to order rather than a support afterthought:
+
+- a floating WhatsApp button on every storefront page, lifted above the mobile
+  bottom navigation;
+- **"Send this order on WhatsApp"** in the cart, which pre-fills the entire
+  basket, per-line prices, delivery area, fee and total as a message — so a
+  customer who would rather confirm by chat still reaches the shop with an
+  exact, priced order instead of a vague voice call;
+- click-to-chat and call buttons on the order page and throughout the admin.
+
+None of this needs an API account, which means the shop can take orders from
+day one, before any paid gateway exists.
+
 ### Notifications
 
 `src/lib/notifications` writes every message to a collection first, then hands
 it to the active provider, so a gateway outage leaves a visible FAILED record
-instead of silence. With no gateway configured, messages (including sign-in
-codes) are logged to the server console — the entire flow works locally with no
-paid account. Admin screens also use free `wa.me` click-to-chat links to
-message a customer about an order.
+instead of silence. New orders are announced to the shop on WhatsApp by
+default. With no gateway configured, messages (including sign-in codes) are
+logged to the server console — the entire flow works locally with no paid
+account.
+
+### Installs to the home screen
+
+A manifest and generated icons make the shop installable, so a weekly customer
+reopens it with one tap. The icons are drawn in code
+(`scripts/generate-icons.ts`) from the brand colours rather than committed as
+opaque binaries, so changing the logo is a reviewable diff.
+
+### Fails gracefully
+
+Skeleton loading screens instead of a blank white page on a slow connection, a
+plain-language error screen that keeps the cart and offers the shop's phone
+number, and a 404 that offers search and categories rather than a dead end.
 
 ### SEO
 

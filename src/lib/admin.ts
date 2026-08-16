@@ -3,7 +3,7 @@ import { collections, toObjectId, ObjectId } from '@/lib/db/client';
 import { mapCategory, mapOrder, mapProduct, mapSlot, mapZone } from '@/lib/db/mappers';
 import type { Category, DeliverySlot, DeliveryZone, Order, Product } from '@/lib/db/mappers';
 import type { NotificationDoc, OrderStatus } from '@/lib/db/types';
-import { startOfDhakaToday } from '@/lib/store';
+import { startOfDhakaToday, type StoreContext } from '@/lib/store';
 
 /**
  * Reads for the shop owner's dashboard.
@@ -262,4 +262,125 @@ export async function listAdminSlots(storeId: string): Promise<DeliverySlot[]> {
   const { slots } = await collections();
   const docs = await slots.find({ storeId: id }).sort({ sortOrder: 1, startTime: 1 }).toArray();
   return docs.map(mapSlot);
+}
+
+// ---------------------------------------------------------------------------
+// Setup checklist
+// ---------------------------------------------------------------------------
+
+export type SetupItem = {
+  id: string;
+  title: string;
+  detail: string;
+  severity: 'error' | 'warning' | 'info';
+  href?: string;
+};
+
+/**
+ * What the owner has not finished setting up.
+ *
+ * Every item here is something they would otherwise discover the hard way —
+ * from a customer who could not check out, or an order nobody was told about.
+ * Silence means the shop is ready to take orders.
+ */
+export async function getSetupChecklist(store: StoreContext): Promise<SetupItem[]> {
+  const id = toObjectId(store.id);
+  if (!id) return [];
+
+  const { products, categories, zones } = await collections();
+
+  const [productCount, categoryCount, zoneCount] = await Promise.all([
+    products.countDocuments({ storeId: id, isActive: true }),
+    categories.countDocuments({ storeId: id, isActive: true }),
+    zones.countDocuments({ storeId: id, isActive: true }),
+  ]);
+
+  const items: SetupItem[] = [];
+  const settings = store.settings;
+
+  // Blocking: a customer literally cannot complete an order without these.
+  if (categoryCount === 0) {
+    items.push({
+      id: 'categories',
+      title: 'No categories yet',
+      detail: 'Customers browse by category. Add the ones matching your shelves.',
+      severity: 'error',
+      href: '/admin/categories',
+    });
+  }
+
+  if (productCount === 0) {
+    items.push({
+      id: 'products',
+      title: 'No products yet',
+      detail: 'The shop has nothing to sell until you add products.',
+      severity: 'error',
+      href: '/admin/products/new',
+    });
+  }
+
+  if (settings?.deliveryEnabled && zoneCount === 0) {
+    items.push({
+      id: 'zones',
+      title: 'No delivery areas',
+      detail:
+        'Delivery is switched on but no areas exist, so nobody can choose delivery at checkout.',
+      severity: 'error',
+      href: '/admin/delivery',
+    });
+  }
+
+  if (!settings?.notifyWhatsapp && !settings?.notifyPhone) {
+    items.push({
+      id: 'alerts',
+      title: 'New orders are not being announced',
+      detail: 'Add a WhatsApp or SMS number so you hear about an order as it arrives.',
+      severity: 'error',
+      href: '/admin/settings',
+    });
+  }
+
+  // Worth fixing, but the shop still works.
+  if (!store.addressLine || !store.area) {
+    items.push({
+      id: 'address',
+      title: 'Shop address is incomplete',
+      detail:
+        'The address appears on the homepage and is what local searches such as "grocery shop near me" match on.',
+      severity: 'warning',
+      href: '/admin/settings',
+    });
+  }
+
+  if (!store.mapUrl) {
+    items.push({
+      id: 'map',
+      title: 'No map link',
+      detail: 'Add your Google Maps link so customers collecting an order can find the shop.',
+      severity: 'info',
+      href: '/admin/settings',
+    });
+  }
+
+  if (!process.env.SMS_GATEWAY_URL) {
+    items.push({
+      id: 'sms',
+      title: 'No SMS gateway configured',
+      detail:
+        'Customers cannot receive sign-in codes or status updates by SMS. Orders still work — guests can check out and you are alerted on WhatsApp.',
+      severity: 'warning',
+    });
+  }
+
+  if (!process.env.S3_BUCKET) {
+    items.push({
+      id: 'storage',
+      title: 'Product photos are stored on this server',
+      detail:
+        'Fine for a single server, but photos are lost if the app is redeployed on a platform with a temporary disk. Configure S3 storage to keep them.',
+      severity: 'info',
+    });
+  }
+
+  return items;
 }

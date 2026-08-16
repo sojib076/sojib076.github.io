@@ -14,7 +14,8 @@ import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
 import InsightsIcon from '@mui/icons-material/Insights';
 
-import { getDashboardData } from '@/lib/admin';
+import SetupChecklist from '@/components/admin/SetupChecklist';
+import { getDashboardData, getSetupChecklist } from '@/lib/admin';
 import { requireStore, resolveSettings } from '@/lib/store';
 import { formatBDT } from '@/lib/money';
 import { STATUS_LABELS } from '@/lib/orders';
@@ -23,6 +24,11 @@ import { statusColor } from '@/lib/orderDisplay';
 export default async function AdminDashboardPage() {
   const store = await requireStore();
   const settings = resolveSettings(store);
+  const [dashboard, setupItems] = await Promise.all([
+    getDashboardData(store.id, settings.lowStockThreshold),
+    getSetupChecklist(store),
+  ]);
+
   const {
     todayOrders,
     todaySalesPoisha,
@@ -33,7 +39,7 @@ export default async function AdminDashboardPage() {
     lowStock,
     popular,
     latestOrders,
-  } = await getDashboardData(store.id, settings.lowStockThreshold);
+  } = dashboard;
 
   return (
     <Box>
@@ -45,6 +51,8 @@ export default async function AdminDashboardPage() {
           {pendingCount} order{pendingCount === 1 ? '' : 's'} to confirm
         </Button>
       </Stack>
+
+      <SetupChecklist items={setupItems} />
 
       {pendingCount > 0 ? (
         <Alert severity="warning" sx={{ mb: 2 }}>

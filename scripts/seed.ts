@@ -3,10 +3,10 @@
  *
  * Two rules this file follows deliberately:
  *
- *  1. No invented business information. The store's phone number, address and
- *     map link are left EMPTY for the owner to fill in from the admin
- *     dashboard — a wrong phone number on a live shop is worse than a blank
- *     one, and search engines are given only what the owner confirms.
+ *  1. No invented business information. The phone number below was given by
+ *     the shop owner; the address and map link are left EMPTY for them to fill
+ *     in from the admin dashboard — a guessed location on a live shop is worse
+ *     than a blank one, and search engines are given only confirmed details.
  *  2. Prices are realistic starting points, not quoted facts. Bazaar prices
  *     move weekly; the owner is expected to correct them in Admin → Products.
  *
@@ -24,6 +24,9 @@ loadEnv();
 const uri = requireEnv('MONGODB_URI');
 const dbName = process.env.MONGODB_DB ?? 'shibu_store';
 const STORE_SLUG = process.env.ACTIVE_STORE_SLUG ?? 'shibu-store';
+
+/** The shop's own number, in the canonical 01XXXXXXXXX form. */
+const SHOP_PHONE = process.env.SHOP_PHONE ?? '01781736024';
 
 const taka = (amount: number) => Math.round(amount * 100);
 
@@ -293,10 +296,11 @@ async function main() {
         nameBn: 'শিবু স্টোর',
         description:
           'Your neighbourhood grocery shop. Order rice, dal, oil, spices and daily essentials for home delivery or store pickup.',
-        // Contact and address are intentionally blank — fill them in from
-        // Admin → Settings → Store details so the site never publishes a guess.
-        phone: null,
-        whatsapp: null,
+        // Contact number supplied by the shop owner. The address is still
+        // intentionally blank — fill it in from Admin → Settings → Store
+        // details so the site never publishes a guessed location.
+        phone: SHOP_PHONE,
+        whatsapp: SHOP_PHONE,
         email: null,
         addressLine: null,
         area: null,
@@ -320,8 +324,10 @@ async function main() {
           acceptOrdersWhenClosed: true,
           orderNumberPrefix: 'SS',
           lowStockThreshold: 5,
-          notifyPhone: null,
-          notifyWhatsapp: null,
+          // New orders reach the shop on WhatsApp, which is where the owner
+          // already works. SMS is the fallback if a gateway is configured.
+          notifyPhone: SHOP_PHONE,
+          notifyWhatsapp: SHOP_PHONE,
           notifyEmail: null,
         },
         // Open every day 8:00–22:00 until the owner says otherwise.
@@ -339,6 +345,17 @@ async function main() {
   );
 
   const storeId = storeResult!._id as ObjectId;
+
+  // The block above only applies on insert, so a shop seeded before this
+  // number was known would still have no contact details. Backfill each field
+  // only where it is still empty — the query guard is what makes this safe to
+  // re-run without overwriting anything the owner has since typed in.
+  for (const field of ['phone', 'whatsapp', 'settings.notifyPhone', 'settings.notifyWhatsapp']) {
+    await db.collection('stores').updateOne(
+      { _id: storeId, $or: [{ [field]: null }, { [field]: { $exists: false } }, { [field]: '' }] },
+      { $set: { [field]: SHOP_PHONE, updatedAt: now } },
+    );
+  }
 
   for (const zone of ZONES) {
     await db.collection('deliveryZones').updateOne(

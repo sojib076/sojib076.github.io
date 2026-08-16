@@ -4,8 +4,10 @@ import ThemeRegistry from '@/components/ThemeRegistry';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import BottomNav from '@/components/BottomNav';
+import WhatsAppButton from '@/components/WhatsAppButton';
 import { getCartCount } from '@/lib/cart';
 import { getStore } from '@/lib/store';
+import { toInternationalPhone } from '@/lib/whatsapp';
 
 // Prices, stock and store settings are live data; nothing here may be baked
 // into a static build.
@@ -48,7 +50,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const cartCount = await getCartCount();
+  const [cartCount, store] = await Promise.all([getCartCount(), getStore()]);
+  const whatsapp = store?.whatsapp ?? store?.phone ?? null;
 
   return (
     <html lang="en">
@@ -62,6 +65,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <SiteFooter />
           </Box>
           <BottomNav cartCount={cartCount} />
+          {whatsapp ? (
+            <WhatsAppButton
+              phone={toInternationalPhone(whatsapp)}
+              storeName={store?.name ?? 'Shibu Store'}
+            />
+          ) : null}
         </ThemeRegistry>
       </body>
     </html>
